@@ -1,0 +1,74 @@
+﻿@page "/"
+@using Microsoft.AspNetCore.Components.Web
+@rendermode RenderMode.InteractiveServer
+@using MyDbModels
+@using SAT242516049.DbModels
+@using UnitOfWorks
+@using ApexCharts
+@inject IMyDbModel_UnitOfWork _uow
+
+<PageTitle>Ana Sayfa</PageTitle>
+
+<div class="container mt-4">
+    <div class="text-center mb-5">
+        <h1 class="display-4">Durum Paneli</h1>
+        <p class="text-muted">Fatura türlerine göre toplam borç dağılımı</p>
+    </div>
+
+    <div class="row justify-content-center">
+        <div class="col-lg-8">
+            <div class="card shadow-sm border-0">
+                <div class="card-body">
+                    @if (Stats == null)
+                    {
+                        <p class="text-center">Veriler yükleniyor...</p>
+                    }
+                    else if (!Stats.Any())
+                    {
+                        <div class="alert alert-warning">Gösterilecek veri bulunamadı.</div>
+                    }
+                    else
+                    {
+                        <ApexChart TItem="StatItem"
+                                   Title="Borç Dağılımı (₺)"
+                                   Options="options">
+
+                            <ApexPointSeries TItem="StatItem"
+                                             Items="Stats"
+                                             Name="Toplam Tutar"
+                                             SeriesType="SeriesType.Bar"
+                                             XValue="@(e => e.Label)"
+                                             YValue="@(e => e.Value)"
+                                             Color="#0d6efd" />
+                        </ApexChart>
+                    }
+                </div>
+            </div>
+        </div>
+    </div>
+</div>
+
+@code {
+    // Grafik Ayarları
+    private ApexChartOptions<StatItem> options = new ApexChartOptions<StatItem>
+        {
+            Theme = new Theme { Mode = Mode.Light },
+            PlotOptions = new PlotOptions
+            {
+                Bar = new PlotOptionsBar { Horizontal = false } // Dikey çubuklar
+            }
+        };
+
+    // Grafik Verisi
+    private List<StatItem> Stats;
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Veritabanından İstatistikleri Çek
+        var model = new MyDbModel<StatItem>();
+        await _uow.Execute(model, "sp_Stats_BillDistributions", isPagination: false);
+
+        // 2. Listeyi Doldur (DÜZELTME: .ToList() eklendi)
+        Stats = model.Items.ToList();
+    }
+}

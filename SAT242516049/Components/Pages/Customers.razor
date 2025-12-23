@@ -1,0 +1,13 @@
+﻿@page "/customers"
+@using SAT242516049.DbModels
+
+@* HATAYI ÇÖZEN KISIM: RenderMode.InteractiveServer *@
+@rendermode RenderMode.InteractiveServer
+
+<DataManageComponent TItem="Customer"
+                     Title="Müşteri Yönetimi"
+                     SpList="sp_Customers_List"
+                     SpAdd="sp_Customers_Add"
+                     SpUpdate="sp_Customers_Update"
+                     SpDelete="sp_Customers_Delete"
+                     FilterColumnName="Name" />

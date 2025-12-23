@@ -1,0 +1,146 @@
+﻿@page "/bills"
+@using SAT242516049.Data
+@using SAT242516049.DbModels
+@using Extensions
+
+@rendermode RenderMode.InteractiveServer
+
+@inject PdfService _pdfService
+@inject IJSRuntime JSRuntime
+@inject IMyDbModel_Provider _provider
+
+@* --- HATA AYIKLAMA PENCERESİ (DEBUGGER) --- *@
+@if (!string.IsNullOrEmpty(DebugMessage))
+{
+    <div class="alert alert-danger">
+        <h4>Sistem Raporu:</h4>
+        <pre>@DebugMessage</pre>
+    </div>
+}
+else
+{
+    <div class="alert alert-success">
+        Veritabanı Bağlantısı Başarılı. Yüklenen Müşteri: @CustomerCount | Yüklenen Tür: @BillTypeCount
+    </div>
+}
+@* ------------------------------------------ *@
+
+<div class="d-flex justify-content-end mb-2">
+    <button class="btn btn-danger" @onclick="DownloadPdf">
+        <i class="bi bi-file-earmark-pdf"></i> PDF Raporu İndir
+    </button>
+</div>
+
+<DataManageComponent TItem="Bill"
+                     Title="Fatura Yönetimi"
+                     SpList="sp_Bills_List"
+                     SpAdd="sp_Bills_Add"
+                     SpUpdate="sp_Bills_Update"
+                     SpDelete="sp_Bills_Delete"
+                     FilterColumnName="CustomerID"
+                     DropdownData="DropdownList" />
+
+@code {
+    // Dropdown listelerini tutacak ana değişken
+    private Dictionary<string, List<DropdownItem>> DropdownList = new();
+
+    // Debug bilgileri
+    private string DebugMessage = "";
+    private int CustomerCount = 0;
+    private int BillTypeCount = 0;
+
+
+
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. GEÇİCİ LİSTE (Blazor'ı tetiklemek için şart)
+        var tempList = new Dictionary<string, List<DropdownItem>>();
+
+        try
+        {
+            // --- A. MÜŞTERİLERİ ÇEK ---
+            var customers = await _provider.GetItems<Customer>("sp_Customers_List",
+                 ("pagination", new Dictionary<string, string> {
+         { "PageSize", "100" } // <-- BU ÇOK FAZLA!
+                     }.ToSqlParameter_Table_Type_Dictionary("pagination"))
+            );
+
+            // Müşteri listesini hazırla
+            var customerDropdowns = new List<DropdownItem>();
+
+            // TEST SATIRI: Veritabanı boşsa bile bunu görmelisin!
+            customerDropdowns.Add(new DropdownItem { Id = "0", Text = "--- SEÇİNİZ ---" });
+
+            if (customers != null)
+            {
+                CustomerCount = customers.Count(); // Debug için sayıyı al
+                foreach (var c in customers)
+                {
+                    customerDropdowns.Add(new DropdownItem
+                        {
+                            Id = c.ID.ToString(),
+                            Text = $"{c.Name} {c.Surname}"
+                        });
+                }
+            }
+            // "CustomerID" anahtarı Bill.cs ile AYNI olmalı
+            tempList.Add("CustomerID", customerDropdowns);
+
+
+            // --- B. FATURA TÜRLERİNİ ÇEK ---
+            var billTypes = await _provider.GetItems<BillType>("sp_BillTypes_List",
+                             ("pagination", new Dictionary<string, string> {
+                                 { "PageNumber", "1" },  // <-- Bunu eklemezsen bazı SP'ler veri döndürmez!
+                                 { "PageSize", "1000" }
+                                     }.ToSqlParameter_Table_Type_Dictionary("pagination"))
+                        );
+
+            var billTypeDropdowns = new List<DropdownItem>();
+            billTypeDropdowns.Add(new DropdownItem { Id = "0", Text = "--- SEÇİNİZ ---" });
+
+            if (billTypes != null)
+            {
+                BillTypeCount = billTypes.Count(); // Debug için sayıyı al
+                foreach (var b in billTypes)
+                {
+                    billTypeDropdowns.Add(new DropdownItem
+                        {
+                            Id = b.ID.ToString(),
+                            Text = b.Name
+                        });
+                }
+            }
+            // "BillTypeID" anahtarı Bill.cs ile AYNI olmalı
+            tempList.Add("BillTypeID", billTypeDropdowns);
+
+            // 2. REFERANS DEĞİŞİMİ (Sihirli Dokunuş)
+            DropdownList = tempList;
+
+            // 3. EKRANI ZORLA YENİLE
+            await InvokeAsync(StateHasChanged);
+        }
+        catch (Exception ex)
+        {
+            // Hatayı ekrana bas
+            DebugMessage = $"HATA OLUŞTU:\n{ex.Message}\n{ex.StackTrace}";
+        }
+    }
+
+
+
+
+    private async Task DownloadPdf()
+    {
+        var result = await _provider.GetItems<Bill>("sp_Bills_List",
+            ("pagination", new Dictionary<string, string> { { "PageSize", "1000" } }.ToSqlParameter_Table_Type_Dictionary("pagination"))
+        );
+
+        if (result != null)
+        {
+            var pdfBytes = _pdfService.GenerateBillsPdf(result.ToList());
+            using var stream = new MemoryStream(pdfBytes);
+            using var streamRef = new DotNetStreamReference(stream);
+            await JSRuntime.InvokeVoidAsync("downloadFileFromStream", "FaturaRaporu.pdf", streamRef);
+        }
+    }
+}
