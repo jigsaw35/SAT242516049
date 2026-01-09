@@ -1,0 +1,14 @@
+﻿version: "3.9"
+
+services:
+  sat242516049:
+    build: .
+    image: sat242516049:latest
+    container_name: sat242516049
+    ports:
+      - "8089:8080"
+    environment:
+      - ASPNETCORE_ENVIRONMENT=Production
+      - ConnectionStrings__DefaultConnection=Server=host.docker.internal,1445;Database=SAT242516049;User Id=sa;Password=Oo_454545;TrustServerCertificate=True;Encrypt=True;
+      - SITE=SAT242516049
+    restart: unless-stopped
